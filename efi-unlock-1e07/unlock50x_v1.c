@@ -4866,7 +4866,12 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     tu102_pause(3, L"banner + log status");
 #endif
     Print(L"\n=== CMP50HX Unlock v1-50HX (TU102 GSP WITH_LOADER) ===\n");
-    returnToGrub = u40x_has_load_option(ImageHandle, L"--return-to-grub");
+    /* 1e07 port: return-to-grub is the DEFAULT. This build is launched via
+     * GRUB `chainloader` which passes no LoadOptions, and the operator then
+     * boots Windows/Linux manually from the GRUB menu. The internal OS
+     * chainload ladder is opt-in via the "--chainload-os" load option
+     * (only reachable through efibootmgr -u / firmware Boot#### entries). */
+    returnToGrub = !u40x_has_load_option(ImageHandle, L"--chainload-os");
     if (returnToGrub)
         Print(L"[50HX] GRUB handoff mode: internal chainload disabled\n");
     else
@@ -5192,11 +5197,21 @@ done:
     dump_regs(L"[v55 final]");
     /* ---------- [11] best-effort ReBAR (BAR1); reverts on any failed
      * check — see u40x_rebar_try ---------- */
-    if (u40x_rebar32(ImageHandle)) {
-        Print(L"[rebar] rebar=32g: attempting 32 GiB BAR1 (issue #47)\n");
-        u40x_rebar_try(0x800000000ULL, 9U);
+    /* ---------- [11] best-effort ReBAR (BAR1) ----------
+     * 1e07 port: DISABLED. Target host GA-B75M-D2V has no Above-4G
+     * Decoding option; the bridge prefetch window cannot host a 16 GiB span,
+     * so the attempt is dead weight (u40x_rebar_try would skip cleanly, but
+     * not touching BAR1 at all is even cleaner). Opt-in only via the
+     * "rebar=try" load option. */
+    if (u40x_has_load_option(ImageHandle, L"rebar=try")) {
+        if (u40x_rebar32(ImageHandle)) {
+            Print(L"[rebar] rebar=32g: attempting 32 GiB BAR1 (issue #47)\n");
+            u40x_rebar_try(0x800000000ULL, 9U);
+        } else {
+            u40x_rebar_try(0x400000000ULL, 8U);
+        }
     } else {
-        u40x_rebar_try(0x400000000ULL, 8U);
+        Print(L"[rebar] skipped (no rebar=try; host lacks Above-4G)\n");
     }
     /* v71fix: 黑屏很久+driver掉根因 = return firmware → BDS 重跑 POST →
      * GPU 重新initialize/unlock 丢失。改用黑盒式链载（chainload_preloaded：
