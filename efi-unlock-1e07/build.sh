@@ -71,7 +71,9 @@ else
         exit 1
     fi
     echo "=== UNLOCK build (inputs hash-verified) ==="
-    BASE_DEFS="$BASE_DEFS -DVBIOS_DUMP"
+    # 1e07 port: VBIOS_DUMP disabled — the runtime \50hx_vbios.bin snapshot
+    # is write-only diagnostics (the exploit chain never reads it back) and
+    # this card's PROM is already captured/verified against TU102.rom.
 fi
 
 # Placeholders for blobs referenced by unused code paths
