@@ -14,3 +14,17 @@ nvram-backup/
 # logs that may contain device identifiers
 50hx_log.txt
 *prom*.bin
+
+# 1e07 port: firmware inputs and build outputs
+efi-unlock-1e07/blobs/
+efi-unlock-1e07/*.o
+efi-unlock-1e07/*.so
+efi-unlock-1e07/blobs/.gitkeep
+
+# 1e07 port: firmware inputs and build outputs
+efi-unlock-1e07/blobs/
+efi-unlock-1e07/*.o
+efi-unlock-1e07/*.so
+efi-unlock-1e07/blobs/.gitkeep
+# private bench results
+bench/results_*.json

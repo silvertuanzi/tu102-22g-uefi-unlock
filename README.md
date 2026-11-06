@@ -6,6 +6,12 @@
 
 **在一张卡上完整落地并实测:+51%~75% FP16/FP32 累加张量吞吐**(见[实测数据](docs/RESULTS.md))。
 
+> 本 fork 新增 **Rev.A(1e07)移植**:`efi-unlock-1e07/`,见其
+> [PORT-NOTES.md](efi-unlock-1e07/PORT-NOTES.md)。同一漏洞链,适配本机卡
+> 固件几何(39440B FWSEC 家族);booter 改 reset-first 单发(修复 no-reset
+> 路径的 0x91 尸体化);宿主为 GRUB chainloader(执行后返回 GRUB)。
+> 实机热重启(含 Windows 会话路径)验证通过,数据见 PORT-NOTES.md E 节。
+
 > ⚠️ **实验性固件级操作,风险自担。** 详见[安全边界](#安全边界)。本仓库不包含任何
 > NVIDIA 固件;构建时由使用者自行获取并经哈希校验。
 
@@ -139,8 +145,8 @@ EFI 侧成功标志(日志在引导介质根 `50hx_log.txt`):`*** UNLOCKED (SS0=
 ## 仓库结构
 
 ```
-efi-unlock-tu102/   移植源码 unlock50x_v1.c + build.sh + extract_fwsec.py + PORT-NOTES.md
+efi-unlock-tu102/   1e04 移植源码 unlock50x_v1.c + build.sh + extract_fwsec.py + PORT-NOTES.md
+efi-unlock-1e07/    1e07 Rev.A 移植(本 fork 新增):同上 + README.md + qemu-test.sh
 tools/              get-blobs.sh / install-esp.ps1 / remove-esp.ps1 / make-usb.ps1 / qemu-test.sh
-bench/              bench_gemm.py(A/B 基准)
-docs/               RESULTS.md(实测数据)
+bench/              bench_gemm.py(A/B 基准)+ results_*.json(1e07 实测)
 ```
