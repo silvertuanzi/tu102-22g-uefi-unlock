@@ -2291,12 +2291,19 @@ booter_load_tu102_direct(UINT64 wprMetaPhys, UINT64 ucodePhys)
     data = mmio_read32(SEC2_RESET_PLM_REG);
     Print(L"tu102 v62:   reset_plm=0x%08x (cyridd 期望 0xff)\n", data);
 
-    for (attempt = 0; attempt < 2; attempt++) {
-        BOOLEAN bReset = (attempt == 1);
+    /* 1e07 port: SINGLE attempt, reset-first. The upstream no-reset-first
+ * order is a TU106/CMP40HS driver-flow result; on this TU102 1e07 card the
+ * no-reset start executed the booter which exited 0x91 AND poisoned the
+ * SEC2 register block (every later port write read back dead5ec1/e c2 —
+ * the v2.69 corpse effect), so retries are useless after a 0x91.
+ * KohakUnlock's hardware-proven TU102 22G sequence (tx_run) also resets
+ * SEC2 BEFORE the booter load. Reset sequence here = attempt B's body. */
+    for (attempt = 0; attempt < 1; attempt++) {
+        BOOLEAN bReset = TRUE;
         UINT32 rbNs = 0, rbSec = 0;
 
-        Print(L"\n--- tu102 attempt %d/%d: %s ---\n", (INTN)attempt + 1, 2,
-              bReset ? L"engine-reset" : L"no-reset (driver-style)");
+        Print(L"\n--- tu102 attempt %d/%d: %s ---\n", (INTN)attempt + 1, 1,
+              bReset ? L"engine-reset (reset-first, KohakUnlock order)" : L"no-reset");
 
         /* 准备engine（A: 不加复bit——driver exploit 用 FWSEC 后 halted 的engine；
          *  B: kflcnReset_TU102 = pre-wait→reset→scrub wait→BCR=0→RM=chipId0） */
@@ -2400,13 +2407,9 @@ booter_load_tu102_direct(UINT64 wprMetaPhys, UINT64 ucodePhys)
                   (INTN)attempt + 1);
             return EFI_SUCCESS;
         }
-        Print(L"tu102: attempt %d not-OK (m0=0x%x halted=%d)\n",
-              (INTN)attempt + 1, m0,
+        Print(L"tu102: attempt not-OK (m0=0x%x halted=%d) — NOT retrying "
+              L"(a 0x91 run poisons the SEC2 register block)\n", m0,
               (cpu & NV_PFALCON_FALCON_CPUCTL_HALTED_TRUE) ? 1 : 0);
-        if (attempt == 0) {
-            Print(L"tu102: -> retry with engine reset (attempt B)\n");
-            continue;
-        }
         break;
     }
     return EFI_DEVICE_ERROR;
@@ -5126,10 +5129,11 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
     Status = booter_load_tu102_direct(wprMetaPhys, ucodePhys);
     Print(L"[50HX] booter_load_tu102_direct returned %r\n", Status);
     if (EFI_ERROR(Status)) {
-        /* v56 fallback：GA102 风格 DMA path（v55 用的那套），结果对比用 */
-        Print(L"[50HX] fallback: booter_load_v67 (DMA path, GA102-style)...\n");
-        Status = booter_load_v67(wprMetaPhys, ucodePhys);
-        Print(L"[50HX] booter_load_v67 returned %r\n", Status);
+        /* 1e07 port: GA102-style DMA fallback REMOVED. After a 0x91 booter
+         * run the SEC2 register block is poisoned (v2.69 corpse effect,
+         * confirmed on this card: dead5ec1/e c2 everywhere); a second
+         * load on the corpse cannot succeed and only adds noise. */
+        Print(L"[50HX] no fallback after booter failure (SEC2 corpse guard)\n");
     }
     sec2_health(L"v55-post-booter");
     uefi_call_wrapper(BS->Stall, 1, 500000);
@@ -5195,8 +5199,6 @@ efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 
 done:
     dump_regs(L"[v55 final]");
-    /* ---------- [11] best-effort ReBAR (BAR1); reverts on any failed
-     * check — see u40x_rebar_try ---------- */
     /* ---------- [11] best-effort ReBAR (BAR1) ----------
      * 1e07 port: DISABLED. Target host GA-B75M-D2V has no Above-4G
      * Decoding option; the bridge prefetch window cannot host a 16 GiB span,
